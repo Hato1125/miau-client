@@ -1,0 +1,10 @@
+.vscode/
+.fleet/
+.idea/
+.zed/
+.vs/
+.cache/
+.xmake/
+
+build/
+nanovg/
