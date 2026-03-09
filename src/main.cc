@@ -1,11 +1,10 @@
+#include <chrono>
+
 #include <dlfcn.h>
 #include <jni.h>
 
-#include <chrono>
-
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
-
 
 #define NANOVG_GLES2_IMPLEMENTATION
 #include <nanovg.h>
@@ -14,85 +13,112 @@
 #include "main.hh"
 #include "log.hh"
 
-static void (*mcpelauncher_preinithook)(
-  const char* sym,
-  void* val,
-  void** orig
-);
+#include "hud/fps.hh"
+#include "hud/time.hh"
 
-static decltype(&eglSwapBuffers) egl_swap_buffers_orig;
-static decltype(&eglMakeCurrent) egl_make_current_orig;
-static void* swappy_swap_placeholder;
+namespace {
+  std::shared_ptr<miau::hud::fps> fps;
+  std::shared_ptr<miau::hud::time> time;
 
-int font = -1;
-
-static void loop(EGLDisplay dpy, EGLSurface surface) noexcept {
-  if (!miau::vg) {
-    return;
-  }
-
-  static auto last_time = std::chrono::steady_clock::now();
-
-  EGLint width = 0;
-  EGLint height = 0;
-  eglQuerySurface(dpy, surface, EGL_WIDTH, &width);
-  eglQuerySurface(dpy, surface, EGL_HEIGHT, &height);
-
-  GLint viewport[4];
-  glGetIntegerv(GL_VIEWPORT, viewport);
-  glViewport(0, 0, width, height);
-
-  nvgBeginFrame(miau::vg, width, height, 1.f);
-  nvgEndFrame(miau::vg);
-
-  glViewport(
-    viewport[0],
-    viewport[1],
-    viewport[2],
-    viewport[3]
+  void (*mcpelauncher_preinithook)(
+    const char* sym,
+    void* val,
+    void** orig
   );
 
-  last_time = std::chrono::steady_clock::now();
-}
+  decltype(&eglSwapBuffers) egl_swap_buffers_orig;
+  decltype(&eglMakeCurrent) egl_make_current_orig;
+  void* swappy_swap_placeholder;
 
-static EGLBoolean swappy_swap(
-  EGLDisplay dpy,
-  EGLSurface surface
-) noexcept {
-  loop(dpy, surface);
-  return egl_swap_buffers_orig(dpy, surface);
-}
+  std::chrono::duration<float> duration;
+  int text_font = -1;
+  int icon_font = -1;
 
-static EGLBoolean egl_swap_buffers(
-  EGLDisplay dpy,
-  EGLSurface surface
-) noexcept {
-  loop(dpy, surface);
-  return egl_swap_buffers_orig(dpy, surface);
-}
-
-static EGLBoolean egl_make_current(
-  EGLDisplay dpy,
-  EGLSurface draw,
-  EGLSurface read,
-  EGLContext ctx
-) noexcept {
-  EGLBoolean result = egl_make_current_orig(dpy, draw, read, ctx);
-
-  if (!miau::vg && draw) {
-    miau::vg = nvgCreateGLES2(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
-
+  void loop(EGLDisplay dpy, EGLSurface surface) noexcept {
     if (!miau::vg) {
-      MIAU_FATAL("nvgCreateGLES2 failed");
-    } else {
-      MIAU_TRACE("nvgCreateGLES2 success");
+      return;
     }
+
+    static auto last_time = std::chrono::steady_clock::now();
+
+    EGLint width = 0;
+    EGLint height = 0;
+    eglQuerySurface(dpy, surface, EGL_WIDTH, &width);
+    eglQuerySurface(dpy, surface, EGL_HEIGHT, &height);
+
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+    glViewport(0, 0, width, height);
+
+    nvgBeginFrame(miau::vg, width, height, 1.f);
+
+    fps->update(20, 50 + 100);
+    fps->draw(20, 50 + 100);
+
+    time->update(20, 120 + 100);
+    time->draw(20, 120 + 100);
+
+    nvgEndFrame(miau::vg);
+
+    glViewport(
+      viewport[0],
+      viewport[1],
+      viewport[2],
+      viewport[3]
+    );
+
+    duration = std::chrono::steady_clock::now() - last_time;
+    last_time = std::chrono::steady_clock::now();
   }
 
-  return result;
+  EGLBoolean swappy_swap(EGLDisplay dpy, EGLSurface surface) noexcept {
+    loop(dpy, surface);
+    return egl_swap_buffers_orig(dpy, surface);
+  }
+
+  EGLBoolean egl_swap_buffers(EGLDisplay dpy, EGLSurface surface) noexcept {
+    loop(dpy, surface);
+    return egl_swap_buffers_orig(dpy, surface);
+  }
+
+  EGLBoolean egl_make_current(
+    EGLDisplay dpy,
+    EGLSurface draw,
+    EGLSurface read,
+    EGLContext ctx
+  ) noexcept {
+    EGLBoolean result = egl_make_current_orig(dpy, draw, read, ctx);
+
+    if (!miau::vg && draw) {
+      miau::vg = nvgCreateGLES2(NVG_ANTIALIAS | NVG_STENCIL_STROKES);
+
+      if (!miau::vg) {
+        MIAU_FATAL("nvgCreateGLES2 failed");
+      } else {
+        MIAU_TRACE("nvgCreateGLES2 success");
+      }
+
+      text_font = nvgCreateFont(miau::vg, "text-font", "/usr/share/fonts/260106Y2P5QRZLKY/TX-02-02X193PL/BerkeleyMonoTrial-Regular.ttf");
+      icon_font = nvgCreateFont(miau::vg, "icon-font", "/usr/share/fonts/ttf-material-symbols-variable/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf");
+
+      fps = std::make_shared<miau::hud::fps>();
+      time = std::make_shared<miau::hud::time>();
+    }
+
+    return result;
+  }
+
 }
 
-extern "C" __attribute__ ((visibility ("default"))) void mod_preinit() noexcept {
+namespace miau {
+  int text_font() noexcept { return ::text_font; }
+  int icon_font() noexcept { return ::icon_font; }
+
+  float frame_time_ms() noexcept { return duration.count() * 1000.f; }
+  float frame_time_s() noexcept { return duration.count(); }
+}
+
+extern "C" [[gnu::visibility("default")]] void mod_preinit() noexcept {
   auto dl = dlopen("libmcpelauncher_mod.so", RTLD_NOW);
 
   if (dl) {
@@ -127,7 +153,7 @@ extern "C" __attribute__ ((visibility ("default"))) void mod_preinit() noexcept 
   }
 }
 
-extern "C" __attribute__ ((visibility ("default"))) void mod_init() noexcept {
+extern "C" [[gnu::visibility("default")]] void mod_init() noexcept {
   auto egl = dlopen("libEGL.so", RTLD_NOW);
 
   if (egl) {

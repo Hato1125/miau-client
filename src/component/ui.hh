@@ -11,6 +11,18 @@ namespace miau {
     std::uint8_t a = 255;
   };
 
+  namespace colors {
+    inline constexpr color white = {255, 255, 255, 255};
+    inline constexpr color black = {0, 0, 0, 255};
+    inline constexpr color red = {255, 0, 0, 255};
+    inline constexpr color green = {0, 255, 0, 255};
+    inline constexpr color blue = {0, 0, 255, 255};
+    inline constexpr color yellow = {255, 255, 0, 255};
+    inline constexpr color cyan = {0, 255, 255, 255};
+    inline constexpr color magenta = {255, 0, 255, 255};
+    inline constexpr color transparent = {0, 0, 0, 0};
+  }
+
   struct edge {
     float top = 0.0f;
     float bottom = 0.0f;

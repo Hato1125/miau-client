@@ -9,7 +9,7 @@ namespace miau {
     nvgTextAlign(miau::vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 
     float bounds[4];
-    nvgTextBounds(miau::vg, x, y, text.c_str(), nullptr, bounds);
+    nvgTextBounds(miau::vg, 0, 0, text.c_str(), nullptr, bounds);
     _width  = bounds[2] - bounds[0];
     _height = bounds[3] - bounds[1];
   }
@@ -29,7 +29,7 @@ namespace miau {
       )
     );
 
-    nvgText(miau::vg, x, y, text.c_str(), nullptr);
+    nvgText(miau::vg, x, y + offset, text.c_str(), nullptr);
   }
 
   float label::width() const noexcept { return _width; }

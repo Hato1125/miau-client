@@ -9,6 +9,7 @@ namespace miau {
   class label : public ui {
   public:
     std::string text;
+    float offset = 0.0f;
     float size = 17.0f;
     float space = 1.0f;
     int font = -1;

@@ -9,9 +9,12 @@
 namespace miau {
   class column : public ui {
   public:
+    float spacing = 0.0f;
     float rounded = 0.0f;
-    float max_width = -1.0;
-    float max_height = -1.0;
+    float max_width = -1.0f;
+    float max_height = -1.0f;
+    float min_width = 0.0f;
+    float min_height = 0.0f;
     bool fixed;
     edge padding;
     color color;
@@ -35,9 +38,12 @@ namespace miau {
 
   class row : public ui {
   public:
+    float spacing = 0.0f;
     float rounded = 0.0f;
     float max_width = -1.0f;
     float max_height = -1.0f;
+    float min_width = 0.0f;
+    float min_height = 0.0f;
     bool fixed;
     edge padding;
     color color;

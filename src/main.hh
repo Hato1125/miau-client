@@ -4,7 +4,13 @@
 #include "nanovg.h"
 
 namespace miau {
-  inline  NVGcontext* vg;
+  inline NVGcontext* vg;
+
+  int text_font() noexcept;
+  int icon_font() noexcept;
+
+  float frame_time_ms() noexcept;
+  float frame_time_s() noexcept;
 }
 
 #endif

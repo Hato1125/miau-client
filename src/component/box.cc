@@ -13,11 +13,15 @@ namespace miau {
     for (auto& child : children) {
       child->update(x, y + _height);
       _width = std::max(child->width(), _width);
-      _height += child->height();
+      _height += child->height() + spacing;
     }
+    _height -= spacing;
 
     _childrens_width = _width;
     _childrens_height = _height;
+
+    if (min_width > _width) _width = min_width;
+    if (min_height > _height) _height = min_height;
 
     if (fixed) {
       if (max_width >= 0) _width = max_width;
@@ -68,7 +72,7 @@ namespace miau {
     for (auto& child : children) {
       std::println("offset: {}", offset);
       child->draw(x + padding.left + ox, offset);
-      offset += child->height();
+      offset += child->height() + spacing;
     }
 
     nvgResetScissor(miau::vg);
@@ -85,12 +89,16 @@ namespace miau {
 
     for (auto& child : children) {
       child->update(x + _width, y);
-      _width += child->width();
+      _width += child->width() + spacing;
       _height = std::max(child->height(), _height);
     }
+    _width -= spacing;
 
     _childrens_width = _width;
     _childrens_height = _height;
+
+    if (min_width > _width) _width = min_width;
+    if (min_height > _height) _height = min_height;
 
     if (fixed) {
       if (max_width >= 0) _width = max_width;
@@ -125,7 +133,7 @@ namespace miau {
 
     for (auto& child : children) {
       child->draw(offset, y + padding.top + oy);
-      offset += child->width();
+      offset += child->width() + spacing;
     }
 
     nvgResetScissor(miau::vg);
