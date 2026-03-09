@@ -2,6 +2,7 @@
 
 #include <dlfcn.h>
 #include <jni.h>
+#include <android/input.h>
 
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
@@ -12,19 +13,30 @@
 
 #include "main.hh"
 #include "log.hh"
+#include "input.hh"
 
 #include "hud/fps.hh"
 #include "hud/time.hh"
+#include "hud/keystroke.hh"
 
 namespace {
   std::shared_ptr<miau::hud::fps> fps;
   std::shared_ptr<miau::hud::time> time;
+  std::shared_ptr<miau::hud::keystroke> key;
+
+  GameWindowHandle* game_window_handle;
+  GameWindowHandle* (*game_window_get_primary_window)();
+  void (*game_window_add_keyboard_callback)(GameWindowHandle*, void*, bool (*)(void*, int, int));
+  void (*game_window_add_mouse_button_callback)(GameWindowHandle*, void*, bool (*)(void*, double, double, int, int));
+  void (*game_window_add_mouse_position_callback)(GameWindowHandle*, void*, bool (*)(void*, double, double, bool));
+  void (*game_window_add_mouse_scroll_callback)(GameWindowHandle*, void*, bool (*)(void*, double, double, double, double));
 
   void (*mcpelauncher_preinithook)(
     const char* sym,
     void* val,
     void** orig
   );
+
 
   decltype(&eglSwapBuffers) egl_swap_buffers_orig;
   decltype(&eglMakeCurrent) egl_make_current_orig;
@@ -57,6 +69,9 @@ namespace {
 
     time->update(20, 120 + 100);
     time->draw(20, 120 + 100);
+
+    key->update(20, 300);
+    key->draw(20, 300);
 
     nvgEndFrame(miau::vg);
 
@@ -101,8 +116,11 @@ namespace {
       text_font = nvgCreateFont(miau::vg, "text-font", "/usr/share/fonts/260106Y2P5QRZLKY/TX-02-02X193PL/BerkeleyMonoTrial-Regular.ttf");
       icon_font = nvgCreateFont(miau::vg, "icon-font", "/usr/share/fonts/ttf-material-symbols-variable/MaterialSymbolsOutlined[FILL,GRAD,opsz,wght].ttf");
 
+      miau::input_init();
+
       fps = std::make_shared<miau::hud::fps>();
       time = std::make_shared<miau::hud::time>();
+      key = std::make_shared<miau::hud::keystroke>();
     }
 
     return result;
@@ -116,6 +134,36 @@ namespace miau {
 
   float frame_time_ms() noexcept { return duration.count() * 1000.f; }
   float frame_time_s() noexcept { return duration.count(); }
+
+  static GameWindowHandle* get_handle() noexcept {
+    if (!game_window_handle && game_window_get_primary_window)
+      game_window_handle = game_window_get_primary_window();
+    return game_window_handle;
+  }
+
+  void on_key(void* user, bool (*callback)(void* user, int keyCode, int action)) noexcept {
+    auto h = get_handle();
+    if (game_window_add_keyboard_callback && h)
+      game_window_add_keyboard_callback(h, user, callback);
+  }
+
+  void on_mouse_button(void* user, bool (*callback)(void* user, double x, double y, int button, int action)) noexcept {
+    auto h = get_handle();
+    if (game_window_add_mouse_button_callback && h)
+      game_window_add_mouse_button_callback(h, user, callback);
+  }
+
+  void on_mouse_position(void* user, bool (*callback)(void* user, double x, double y, bool relative)) noexcept {
+    auto h = get_handle();
+    if (game_window_add_mouse_position_callback && h)
+      game_window_add_mouse_position_callback(h, user, callback);
+  }
+
+  void on_mouse_scroll(void* user, bool (*callback)(void* user, double x, double y, double dx, double dy)) noexcept {
+    auto h = get_handle();
+    if (game_window_add_mouse_scroll_callback && h)
+      game_window_add_mouse_scroll_callback(h, user, callback);
+  }
 }
 
 extern "C" [[gnu::visibility("default")]] void mod_preinit() noexcept {
@@ -154,6 +202,32 @@ extern "C" [[gnu::visibility("default")]] void mod_preinit() noexcept {
 }
 
 extern "C" [[gnu::visibility("default")]] void mod_init() noexcept {
+  auto gw = dlopen("libmcpelauncher_gamewindow.so", RTLD_NOW);
+
+  if (gw) {
+    game_window_get_primary_window = reinterpret_cast<decltype(game_window_get_primary_window)>(
+      dlsym(gw, "game_window_get_primary_window")
+    );
+
+    game_window_add_keyboard_callback = reinterpret_cast<decltype(game_window_add_keyboard_callback)>(
+      dlsym(gw, "game_window_add_keyboard_callback")
+    );
+    game_window_add_mouse_button_callback = reinterpret_cast<decltype(game_window_add_mouse_button_callback)>(
+      dlsym(gw, "game_window_add_mouse_button_callback")
+    );
+    game_window_add_mouse_position_callback = reinterpret_cast<decltype(game_window_add_mouse_position_callback)>(
+      dlsym(gw, "game_window_add_mouse_position_callback")
+    );
+    game_window_add_mouse_scroll_callback = reinterpret_cast<decltype(game_window_add_mouse_scroll_callback)>(
+      dlsym(gw, "game_window_add_mouse_scroll_callback")
+    );
+
+    dlclose(gw);
+    MIAU_TRACE("gamewindow init done");
+  } else {
+    MIAU_FATAL("libmcpelauncher_gamewindow.so not found");
+  }
+
   auto egl = dlopen("libEGL.so", RTLD_NOW);
 
   if (egl) {
